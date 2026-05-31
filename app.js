@@ -16,6 +16,7 @@ const state = {
   activeItemId: null,
   deferredInstallPrompt: null,
   uploadAccessToken: "",
+  uploadClientId: "",
   uploadTokenClient: null
 };
 
@@ -358,8 +359,9 @@ async function uploadSelectedFiles(files) {
     return;
   }
 
-  if (!CONFIG.googleClientId) {
-    setUploadStatus("Google upload is not connected yet. Opening Drive folder.", true);
+  const googleClientId = getGoogleClientId();
+  if (!googleClientId) {
+    setUploadStatus("Upload needs Google connection setup. Opening Drive folder for now.", true);
     window.open(CONFIG.uploadFolderId ? driveFolderUrl(CONFIG.uploadFolderId) : driveFolderUrl(CONFIG.rootFolderId || DRIVE_ROOT_ID), "_blank", "noopener");
     return;
   }
@@ -367,7 +369,7 @@ async function uploadSelectedFiles(files) {
   try {
     els.uploadButton.disabled = true;
     setUploadStatus(`Preparing ${formatNumber(mediaFiles.length)} file${mediaFiles.length > 1 ? "s" : ""} for Upload.`);
-    const accessToken = await getUploadAccessToken();
+    const accessToken = await getUploadAccessToken(googleClientId);
     const uploadFolder = await ensureUploadFolder(accessToken);
     ensureUploadFolderInManifest(uploadFolder);
 
@@ -393,12 +395,13 @@ async function uploadSelectedFiles(files) {
   }
 }
 
-async function getUploadAccessToken() {
+async function getUploadAccessToken(googleClientId) {
   await loadGoogleIdentityServices();
 
-  if (!state.uploadTokenClient) {
+  if (!state.uploadTokenClient || state.uploadClientId !== googleClientId) {
+    state.uploadClientId = googleClientId;
     state.uploadTokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.googleClientId,
+      client_id: googleClientId,
       scope: GOOGLE_DRIVE_UPLOAD_SCOPE,
       callback: () => {}
     });
@@ -415,6 +418,14 @@ async function getUploadAccessToken() {
     };
     state.uploadTokenClient.requestAccessToken({ prompt: state.uploadAccessToken ? "" : "consent" });
   });
+}
+
+function getGoogleClientId() {
+  const clientId = String(CONFIG.googleClientId || "").trim();
+  if (!clientId || clientId.includes("YOUR_GOOGLE_OAUTH_CLIENT_ID")) {
+    return "";
+  }
+  return clientId;
 }
 
 function loadGoogleIdentityServices() {

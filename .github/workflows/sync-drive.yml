@@ -21,6 +21,7 @@ jobs:
       - name: Sync manifest
         env:
           DRIVE_FOLDER_ID: 1nNtCyrJ0uWSMmQwcOMhr6eYDV6vmVmRn
+          DRIVE_ROOT_NAME: GaNeshGallary Drive
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: node scripts/sync-drive-manifest.mjs

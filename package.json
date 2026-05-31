@@ -1,12 +1,13 @@
 {
-  "name": "ganeshpicture27",
+  "name": "ganeshgallary",
   "version": "1.0.0",
   "private": true,
-  "description": "Installable Google Drive photo gallery PWA for GaNeshPicture27.",
+  "description": "Installable Google Drive photo gallery PWA for GaNeshGallary.",
   "type": "module",
   "scripts": {
     "start": "node scripts/dev-server.mjs",
     "sync:drive": "node scripts/sync-drive-manifest.mjs",
+    "build:config": "node scripts/write-drive-config.mjs",
     "generate:icons": "node scripts/generate-icons.mjs",
     "check": "node scripts/check-manifest.mjs"
   },

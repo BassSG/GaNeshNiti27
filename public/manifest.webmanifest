@@ -1,6 +1,6 @@
 {
-  "name": "GaNeshPicture27",
-  "short_name": "GaNesh27",
+  "name": "GaNeshGallary",
+  "short_name": "GaNesh",
   "id": "../",
   "description": "A fast installable gallery app synced from Google Drive folders.",
   "start_url": "../?source=pwa",

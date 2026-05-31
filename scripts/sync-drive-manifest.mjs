@@ -4,7 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 const ROOT_FOLDER_ID = process.env.DRIVE_FOLDER_ID || "1nNtCyrJ0uWSMmQwcOMhr6eYDV6vmVmRn";
 const OUTPUT_PATH = process.env.DRIVE_MANIFEST_PATH || "public/drive-manifest.json";
 const PAGE_SIZE = process.env.DRIVE_PAGE_SIZE || "1000";
-const ROOT_FOLDER_NAME = process.env.DRIVE_ROOT_NAME || "GaNeshPicture27 Drive";
+const ROOT_FOLDER_NAME = process.env.DRIVE_ROOT_NAME || "GaNeshGallary Drive";
 const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
 
 const auth = await resolveAuth();
@@ -97,7 +97,7 @@ async function walkPublic(folderId, pathSegments) {
 async function listPublicChildren(folderId) {
   const response = await fetch(driveEmbeddedFolderUrl(folderId), {
     headers: {
-      "User-Agent": "GaNeshPicture27 manifest sync"
+      "User-Agent": "GaNeshGallary manifest sync"
     }
   });
 

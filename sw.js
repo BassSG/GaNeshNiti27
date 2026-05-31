@@ -1,4 +1,4 @@
-const CACHE_NAME = "ganeshpicture27-shell-v7";
+const CACHE_NAME = "ganeshgallary-shell-v8";
 const APP_SHELL = [
   "./",
   "./index.html",

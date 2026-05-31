@@ -1,6 +1,6 @@
-# GaNeshPicture27
+# GaNeshGallary
 
-GaNeshPicture27 is a premium installable gallery PWA for browsing media from a Google Drive folder. It is designed to run as a static GitHub Pages site while keeping the gallery fast with a generated Drive manifest, lazy thumbnails, incremental rendering, and an app-like lightbox.
+GaNeshGallary is a premium installable gallery PWA for browsing media from a Google Drive folder. It is designed to run as a static GitHub Pages site while keeping the gallery fast with a generated Drive manifest, lazy thumbnails, incremental rendering, and an app-like lightbox.
 
 ## Scope
 
@@ -38,7 +38,7 @@ For live browser-side sync, copy `drive-config.example.js` to `drive-config.js`,
 
 ## Google Drive Upload
 
-The upload button uses Google OAuth in the browser. Add a Web OAuth Client ID to `drive-config.js`:
+The upload button uses Google OAuth in the browser. Add a Web OAuth Client ID to `drive-config.js`, set `GOOGLE_CLIENT_ID` for the Pages workflow, or open the site once with `?googleClientId=YOUR_CLIENT_ID.apps.googleusercontent.com` to save it in that browser:
 
 ```js
 googleClientId: "YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com"
@@ -51,14 +51,14 @@ https://basssg.github.io
 http://localhost:4173
 ```
 
-When the user chooses files, the app signs in with Google, finds or creates a folder named `Upload` inside the Drive root folder, uploads the selected photos/videos there, and immediately shows them in the app. If `googleClientId` is blank, the button opens the Drive folder as a fallback.
+When the user chooses files, the app signs in with Google, finds or creates a folder named `Upload` inside the Drive root folder, uploads the selected photos/videos there, and immediately shows them in the app. If no Google Client ID is configured, the button opens the Drive folder as a fallback because Google Drive write access requires OAuth.
 
 ## Deployment
 
 The workflow `.github/workflows/pages.yml` deploys the static app to GitHub Pages on every push to `main`. The expected Pages URL is:
 
 ```text
-https://basssg.github.io/GaNeshNiti27/
+https://basssg.github.io/GaNeshGallary/
 ```
 
 ## Verification

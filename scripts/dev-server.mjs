@@ -47,5 +47,5 @@ const server = createServer((request, response) => {
 });
 
 server.listen(port, () => {
-  console.log(`GaNeshPicture27 is running at http://localhost:${port}`);
+  console.log(`GaNeshGallary is running at http://localhost:${port}`);
 });
