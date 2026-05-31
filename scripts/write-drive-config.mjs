@@ -1,9 +1,11 @@
 import { writeFile } from "node:fs/promises";
 
+const DEFAULT_GOOGLE_CLIENT_ID = "16121317006-jn7md7g3n8pg5gqa9nt7jmp58qh05hqh.apps.googleusercontent.com";
+
 const config = {
   rootFolderId: process.env.DRIVE_FOLDER_ID || "1nNtCyrJ0uWSMmQwcOMhr6eYDV6vmVmRn",
   googleApiKey: process.env.GOOGLE_API_KEY || "",
-  googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+  googleClientId: process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID,
   uploadFolderId: process.env.GOOGLE_UPLOAD_FOLDER_ID || "",
   uploadFolderName: process.env.GOOGLE_UPLOAD_FOLDER_NAME || "Upload",
   preferLive: process.env.PREFER_LIVE_DRIVE === "true",
