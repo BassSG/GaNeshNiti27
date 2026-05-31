@@ -1,0 +1,42 @@
+name: Sync Google Drive Manifest
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Sync manifest
+        env:
+          DRIVE_FOLDER_ID: 1nNtCyrJ0uWSMmQwcOMhr6eYDV6vmVmRn
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$GOOGLE_API_KEY" ] && [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Skipping Drive sync because no Google Drive secret is configured."
+            exit 0
+          fi
+          node scripts/sync-drive-manifest.mjs
+      - name: Commit manifest changes
+        run: |
+          if git diff --quiet public/drive-manifest.json; then
+            echo "No manifest changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/drive-manifest.json
+          git commit -m "chore: sync Google Drive manifest"
+          git push

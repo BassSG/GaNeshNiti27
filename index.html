@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#121312" />
+    <meta
+      name="description"
+      content="GaNeshPicture27 is a fast installable gallery for browsing Google Drive photo folders."
+    />
+    <title>GaNeshPicture27</title>
+    <link rel="manifest" href="public/manifest.webmanifest" />
+    <link rel="icon" href="public/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="public/icons/icon-192.png" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="drive-config.js"></script>
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Folders">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="img">
+              <path d="M31 9c7 0 13 3 17 8 4 4 6 10 6 16 0 12-10 22-23 22S8 45 8 33c0-6 2-12 6-16 4-5 10-8 17-8Z" />
+              <path d="M22 31c2-4 6-7 10-7s8 3 10 7M23 40c5 4 13 4 18 0" />
+              <circle cx="23" cy="31" r="2" />
+              <circle cx="41" cy="31" r="2" />
+            </svg>
+          </div>
+          <div>
+            <h1>GaNeshPicture27</h1>
+            <p id="syncLabel">Preparing gallery</p>
+          </div>
+        </div>
+
+        <button class="primary-action" id="installButton" type="button">
+          <span data-icon="download"></span>
+          <span>Install App</span>
+        </button>
+
+        <div class="side-section">
+          <div class="section-heading">
+            <span>Library</span>
+            <span id="libraryCount">0 items</span>
+          </div>
+          <div class="folder-list" id="folderList"></div>
+        </div>
+
+        <div class="side-section side-footer">
+          <div class="health-card">
+            <div>
+              <span class="health-dot" id="onlineDot"></span>
+              <strong id="onlineLabel">Online</strong>
+            </div>
+            <small id="generatedLabel">Manifest pending</small>
+          </div>
+        </div>
+      </aside>
+
+      <div class="scrim" id="scrim" aria-hidden="true"></div>
+
+      <main class="main-view" id="mainView">
+        <header class="topbar">
+          <button class="icon-button mobile-only" id="openFoldersButton" type="button" aria-label="Open folders">
+            <span data-icon="folders"></span>
+          </button>
+
+          <div class="current-context">
+            <span id="breadcrumb">All Media</span>
+            <strong id="contextTitle">All Media</strong>
+          </div>
+
+          <label class="search-box">
+            <span data-icon="search"></span>
+            <input id="searchInput" type="search" placeholder="Search files or folders" autocomplete="off" />
+          </label>
+
+          <div class="top-actions">
+            <label class="sort-control">
+              <span data-icon="sort"></span>
+              <select id="sortSelect" aria-label="Sort gallery">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name">Name</option>
+              </select>
+            </label>
+            <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh gallery" title="Refresh">
+              <span data-icon="refresh"></span>
+            </button>
+          </div>
+        </header>
+
+        <section class="stats-strip" aria-label="Gallery summary">
+          <article>
+            <span>Total media</span>
+            <strong id="statMedia">0</strong>
+          </article>
+          <article>
+            <span>Folders</span>
+            <strong id="statFolders">0</strong>
+          </article>
+          <article>
+            <span>Latest time</span>
+            <strong id="statLatest">-</strong>
+          </article>
+        </section>
+
+        <nav class="mobile-folder-strip mobile-only" id="mobileFolderStrip" aria-label="Quick folders"></nav>
+
+        <section class="folder-cards" id="folderCards" aria-label="Folder previews"></section>
+
+        <section class="gallery-header">
+          <div>
+            <span id="resultCount">0 results</span>
+            <strong id="resultTitle">Gallery</strong>
+          </div>
+          <p id="resultNote">Sorted by date and time.</p>
+        </section>
+
+        <section class="gallery-grid" id="galleryGrid" aria-live="polite"></section>
+        <div class="empty-state" id="emptyState" hidden>
+          <span data-icon="image"></span>
+          <strong>No media found</strong>
+          <p>Try another folder or search term.</p>
+        </div>
+        <div class="load-sentinel" id="loadSentinel" aria-hidden="true"></div>
+      </main>
+    </div>
+
+    <div class="lightbox" id="lightbox" aria-modal="true" role="dialog" aria-label="Media preview" hidden>
+      <div class="lightbox-backdrop" data-action="close"></div>
+      <div class="lightbox-panel">
+        <div class="lightbox-toolbar">
+          <div>
+            <span id="lightboxFolder">Folder</span>
+            <strong id="lightboxTitle">Preview</strong>
+          </div>
+          <div class="lightbox-actions">
+            <a class="icon-button" id="openDriveLink" href="#" target="_blank" rel="noreferrer" aria-label="Open in Drive">
+              <span data-icon="external"></span>
+            </a>
+            <button class="icon-button" id="closeLightboxButton" type="button" aria-label="Close preview">
+              <span data-icon="close"></span>
+            </button>
+          </div>
+        </div>
+        <div class="lightbox-stage" id="lightboxStage"></div>
+        <div class="lightbox-footer">
+          <button class="ghost-button" id="previousButton" type="button">
+            <span data-icon="left"></span>
+            <span>Previous</span>
+          </button>
+          <span id="lightboxMeta">-</span>
+          <button class="ghost-button" id="nextButton" type="button">
+            <span>Next</span>
+            <span data-icon="right"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
