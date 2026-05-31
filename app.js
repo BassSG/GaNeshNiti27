@@ -4,6 +4,7 @@ const MEDIA_BATCH_SIZE = 36;
 const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
 const UPLOAD_FOLDER_NAME = CONFIG.uploadFolderName || "Upload";
 const GOOGLE_DRIVE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/drive";
+const LOCAL_UPLOAD_CACHE_KEY = "ganeshUploadManifestCache";
 
 const state = {
   manifest: null,
@@ -232,10 +233,25 @@ function bindEvents() {
 async function loadData(options = {}) {
   setStatus("Loading Drive manifest");
 
-  let manifest = await fetchLocalManifest(options.bustCache);
+  let manifest = null;
   let source = "Cached manifest";
+  const googleClientId = getGoogleClientId();
 
-  if (CONFIG.googleApiKey && (CONFIG.preferLive || options.forceLive)) {
+  if (options.forceLive && googleClientId) {
+    try {
+      setStatus("Signing in to refresh Drive");
+      const accessToken = await getUploadAccessToken(googleClientId);
+      setStatus("Reading Google Drive folders");
+      manifest = await fetchAuthorizedDriveManifest(accessToken);
+      source = "Live Google Drive";
+    } catch (error) {
+      console.warn(error);
+      setUploadStatus("Could not read live Drive yet. Using saved gallery.", true);
+      source = "Cached manifest";
+    }
+  }
+
+  if (!manifest && CONFIG.googleApiKey && (CONFIG.preferLive || options.forceLive)) {
     try {
       setStatus("Syncing Google Drive");
       manifest = await fetchLiveDriveManifest();
@@ -247,7 +263,15 @@ async function loadData(options = {}) {
     }
   }
 
+  if (!manifest) {
+    manifest = await fetchLocalManifest(options.bustCache);
+  }
+
   state.manifest = normalizeManifest(manifest);
+  if (source === "Live Google Drive") {
+    persistUploadFolderSnapshot(state.manifest);
+  }
+  mergePersistedUploads(state.manifest);
   state.index = buildIndex(state.manifest);
   if (state.selectedFolderId !== "all" && !state.index.folderById.has(state.selectedFolderId)) {
     state.selectedFolderId = "all";
@@ -267,8 +291,6 @@ async function fetchLocalManifest(bustCache = false) {
 }
 
 async function fetchLiveDriveManifest() {
-  const rootFolderId = CONFIG.rootFolderId || DRIVE_ROOT_ID;
-  const pageSize = Number(CONFIG.pageSize || 100);
   const apiKey = CONFIG.googleApiKey;
 
   async function driveRequest(path, params = {}) {
@@ -284,6 +306,20 @@ async function fetchLiveDriveManifest() {
     }
     return response.json();
   }
+
+  return fetchDriveManifestWithRequest(driveRequest, "google-drive-api");
+}
+
+async function fetchAuthorizedDriveManifest(accessToken) {
+  return fetchDriveManifestWithRequest(
+    (path, params) => driveAuthorizedRequest(path, accessToken, params),
+    "google-drive-oauth"
+  );
+}
+
+async function fetchDriveManifestWithRequest(driveRequest, source) {
+  const rootFolderId = CONFIG.rootFolderId || DRIVE_ROOT_ID;
+  const pageSize = Number(CONFIG.pageSize || 100);
 
   async function getFolder(folderId) {
     return driveRequest(`files/${folderId}`, {
@@ -340,7 +376,7 @@ async function fetchLiveDriveManifest() {
 
   return {
     version: 1,
-    source: "google-drive-api",
+    source,
     generatedAt: new Date().toISOString(),
     root: {
       id: root.id,
@@ -386,6 +422,7 @@ async function uploadSelectedFiles(files) {
     state.selectedFolderId = uploadFolder.id;
     state.visibleLimit = MEDIA_BATCH_SIZE;
     renderAll();
+    persistUploadedItems(uploadFolder, uploadedItems);
     setUploadStatus(`Uploaded ${formatNumber(uploadedItems.length)} file${uploadedItems.length > 1 ? "s" : ""} to ${uploadFolder.name}.`);
   } catch (error) {
     console.error(error);
@@ -599,6 +636,99 @@ function addUploadedItemToManifest(file, folder) {
     state.manifest.items.unshift(item);
   }
   return item;
+}
+
+function readLocalUploadCache() {
+  try {
+    const rawCache = window.localStorage.getItem(LOCAL_UPLOAD_CACHE_KEY);
+    if (!rawCache) {
+      return { folders: [], items: [] };
+    }
+    const cache = JSON.parse(rawCache);
+    return {
+      folders: Array.isArray(cache.folders) ? cache.folders : [],
+      items: Array.isArray(cache.items) ? cache.items : []
+    };
+  } catch (error) {
+    console.warn("Upload cache could not be read", error);
+    return { folders: [], items: [] };
+  }
+}
+
+function writeLocalUploadCache(cache) {
+  try {
+    window.localStorage.setItem(
+      LOCAL_UPLOAD_CACHE_KEY,
+      JSON.stringify({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        folders: cache.folders || [],
+        items: cache.items || []
+      })
+    );
+  } catch (error) {
+    console.warn("Upload cache could not be saved", error);
+  }
+}
+
+function persistUploadedItems(folder, items) {
+  const cache = readLocalUploadCache();
+  upsertById(cache.folders, folder);
+  items.forEach((item) => upsertById(cache.items, item));
+  writeLocalUploadCache(cache);
+}
+
+function persistUploadFolderSnapshot(manifest) {
+  const uploadFolder =
+    manifest.folders.find((folder) => folder.name === UPLOAD_FOLDER_NAME && folder.parentId === manifest.root.id) ||
+    manifest.folders.find((folder) => folder.name === UPLOAD_FOLDER_NAME);
+
+  if (!uploadFolder) {
+    return;
+  }
+
+  const folderIds = new Set([uploadFolder.id]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    manifest.folders.forEach((folder) => {
+      if (!folderIds.has(folder.id) && folderIds.has(folder.parentId)) {
+        folderIds.add(folder.id);
+        changed = true;
+      }
+    });
+  }
+
+  writeLocalUploadCache({
+    folders: manifest.folders.filter((folder) => folderIds.has(folder.id) && !folder.isRoot),
+    items: manifest.items.filter((item) => folderIds.has(item.folderId))
+  });
+}
+
+function mergePersistedUploads(manifest) {
+  const cache = readLocalUploadCache();
+  cache.folders.forEach((folder) => {
+    if (folder?.id && !manifest.folders.some((candidate) => candidate.id === folder.id)) {
+      manifest.folders.push(folder);
+    }
+  });
+  cache.items.forEach((item) => {
+    if (item?.id && !manifest.items.some((candidate) => candidate.id === item.id)) {
+      manifest.items.unshift(item);
+    }
+  });
+}
+
+function upsertById(collection, value) {
+  if (!value?.id) {
+    return;
+  }
+  const index = collection.findIndex((candidate) => candidate.id === value.id);
+  if (index >= 0) {
+    collection[index] = value;
+  } else {
+    collection.push(value);
+  }
 }
 
 function normalizeManifest(manifest) {

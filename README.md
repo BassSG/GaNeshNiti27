@@ -51,7 +51,7 @@ https://basssg.github.io
 http://localhost:4173
 ```
 
-When the user chooses files, the app signs in with Google, finds or creates a folder named `Upload` inside the Drive root folder, uploads the selected photos/videos there, and immediately shows them in the app. If no Google Client ID is configured, the button opens the Drive folder as a fallback because Google Drive write access requires OAuth.
+When the user chooses files, the app signs in with Google, finds or creates a folder named `Upload` inside the Drive root folder, uploads the selected photos/videos there, and immediately shows them in the app. Uploaded media is cached locally so the `Upload` folder remains visible after a browser refresh. The app refresh button also uses the same Google login to read the live Drive folder tree, including newly created folders. If no Google Client ID is configured, the button opens the Drive folder as a fallback because Google Drive write access requires OAuth.
 
 ## Deployment
 
