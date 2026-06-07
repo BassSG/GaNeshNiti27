@@ -203,7 +203,7 @@ function bindEvents() {
     renderGallery();
   });
 
-  els.refreshButton.addEventListener("click", () => loadData({ forceLive: true, bustCache: true }));
+  els.refreshButton.addEventListener("click", refreshLiveDrive);
   els.uploadButton.addEventListener("click", () => {
     els.uploadInput.value = "";
     els.uploadInput.click();
@@ -213,6 +213,12 @@ function bindEvents() {
     const button = event.target.closest("[data-upload-action]");
     if (button?.dataset.uploadAction === "connect") {
       connectPendingUpload();
+      return;
+    }
+
+    const driveButton = event.target.closest("[data-drive-action]");
+    if (driveButton?.dataset.driveAction === "refresh") {
+      connectAndRefreshDrive();
     }
   });
 
@@ -325,12 +331,15 @@ async function loadData(options = {}) {
   if (options.forceLive && googleClientId) {
     try {
       setStatus("Signing in to refresh Drive");
-      const accessToken = await getUploadAccessToken(googleClientId);
+      const accessToken = options.accessToken || (await getUploadAccessToken(googleClientId));
       setStatus("Reading Google Drive folders");
       manifest = await fetchAuthorizedDriveManifest(accessToken);
       source = "Live Google Drive";
     } catch (error) {
       console.warn(error);
+      if (options.strictLive) {
+        throw error;
+      }
       setUploadStatus("Could not read live Drive yet. Using saved gallery.", true);
       source = "Cached manifest";
     }
@@ -343,6 +352,9 @@ async function loadData(options = {}) {
       source = "Live Google Drive";
     } catch (error) {
       console.warn(error);
+      if (options.strictLive) {
+        throw error;
+      }
       setStatus("Using cached manifest");
       source = "Cached manifest";
     }
@@ -364,6 +376,59 @@ async function loadData(options = {}) {
   state.visibleLimit = MEDIA_BATCH_SIZE;
   renderAll();
   setStatus(source);
+}
+
+async function refreshLiveDrive() {
+  const googleClientId = getGoogleClientId();
+  if (!googleClientId) {
+    await loadData({ forceLive: true, bustCache: true });
+    return;
+  }
+
+  if (!hasFreshUploadToken()) {
+    setDriveRefreshPrompt();
+    return;
+  }
+
+  await runLiveDriveRefresh(state.uploadAccessToken);
+}
+
+async function connectAndRefreshDrive() {
+  const googleClientId = getGoogleClientId();
+  if (!googleClientId) {
+    await loadData({ forceLive: true, bustCache: true });
+    return;
+  }
+
+  try {
+    els.refreshButton.disabled = true;
+    setUploadProgress(2, "Connecting to Google Drive", "Approve access once to scan new folders.");
+    const accessToken = await getUploadAccessToken(googleClientId);
+    await runLiveDriveRefresh(accessToken);
+  } catch (error) {
+    console.error(error);
+    setDriveRefreshPrompt(uploadErrorMessage(error), true);
+  } finally {
+    els.refreshButton.disabled = false;
+  }
+}
+
+async function runLiveDriveRefresh(accessToken) {
+  try {
+    els.refreshButton.disabled = true;
+    setUploadProgress(5, "Refreshing Drive", "Scanning folders and media from Google Drive.");
+    await loadData({ accessToken, forceLive: true, bustCache: true, strictLive: true });
+    setUploadProgress(
+      100,
+      "Refresh complete",
+      `${formatNumber(state.manifest.folders.length - 1)} folders and ${formatNumber(state.manifest.items.length)} media loaded`
+    );
+  } catch (error) {
+    console.error(error);
+    setDriveRefreshPrompt(uploadErrorMessage(error), true);
+  } finally {
+    els.refreshButton.disabled = false;
+  }
 }
 
 async function fetchLocalManifest(bustCache = false) {
@@ -1497,8 +1562,7 @@ function getHomeAlbums() {
         covers,
         latestTime: getTime(covers[0]?.modifiedTime || folder.modifiedTime)
       };
-    })
-    .filter((album) => album.count > 0);
+    });
 
   return sortAlbums(albums, state.sort);
 }
@@ -1927,6 +1991,24 @@ function setUploadConnectPrompt(fileCount, detail = "", isError = false) {
     </span>
     <small class="upload-status-detail">${escapeHtml(detailText)}</small>
     <button class="upload-connect-button" type="button" data-upload-action="connect">Connect Drive</button>
+  `;
+}
+
+function setDriveRefreshPrompt(detail = "", isError = false) {
+  if (!els.uploadStatus) {
+    return;
+  }
+
+  const detailText = detail || "Connect Google Drive once to scan new folders and photos now.";
+  els.uploadStatus.hidden = false;
+  els.uploadStatus.classList.toggle("is-error", isError);
+  els.uploadStatus.innerHTML = `
+    <span class="upload-status-row">
+      <strong>Refresh Google Drive</strong>
+      <small>${isError ? "Try again" : "Live scan"}</small>
+    </span>
+    <small class="upload-status-detail">${escapeHtml(detailText)}</small>
+    <button class="upload-connect-button" type="button" data-drive-action="refresh">Connect Drive & Refresh</button>
   `;
 }
 
