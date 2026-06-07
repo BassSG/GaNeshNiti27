@@ -9,11 +9,13 @@ const RESUMABLE_CHUNK_SIZE = 8 * 1024 * 1024;
 const UPLOAD_RETRY_LIMIT = 3;
 const UPLOAD_RETRY_BASE_DELAY = 900;
 const RECENT_LIMIT = 1253;
+const HOME_VIEW_KEY = "ganeshHomeView";
 
 const state = {
   manifest: null,
   index: null,
   selectedFolderId: "all",
+  homeView: readInitialHomeView(),
   query: "",
   sort: "newest",
   visibleLimit: MEDIA_BATCH_SIZE,
@@ -106,6 +108,7 @@ function cacheElements() {
     "statMedia",
     "statFolders",
     "statLatest",
+    "homeViewSwitch",
     "mobileFolderStrip",
     "mobileHomeButton",
     "mobileFoldersButton",
@@ -168,15 +171,29 @@ function bindEvents() {
   });
 
   els.galleryGrid.addEventListener("click", (event) => {
+    const folderButton = event.target.closest("[data-folder-id]");
+    if (folderButton) {
+      selectFolder(folderButton.dataset.folderId);
+      return;
+    }
+
     const button = event.target.closest("[data-item-id]");
     if (button) {
       openLightbox(button.dataset.itemId);
     }
   });
 
+  els.homeViewSwitch.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-home-view]");
+    if (button) {
+      setHomeView(button.dataset.homeView);
+    }
+  });
+
   els.searchInput.addEventListener("input", (event) => {
     state.query = event.target.value.trim().toLowerCase();
     state.visibleLimit = MEDIA_BATCH_SIZE;
+    renderHomeViewSwitch();
     renderGallery();
   });
 
@@ -1310,6 +1327,7 @@ function renderAll() {
   renderStats();
   renderContext();
   renderMobileStrip();
+  renderHomeViewSwitch();
   renderFolderCards();
   renderGallery();
 }
@@ -1389,6 +1407,18 @@ function quickFolderButton(id, name, active) {
   return `<button class="${active ? "is-active" : ""}" type="button" data-folder-id="${escapeAttr(id)}">${escapeHtml(name)}</button>`;
 }
 
+function renderHomeViewSwitch() {
+  const shouldShow = state.selectedFolderId === "all" && !state.query;
+  els.homeViewSwitch.hidden = !shouldShow;
+  if (!shouldShow) {
+    return;
+  }
+
+  els.homeViewSwitch.querySelectorAll("[data-home-view]").forEach((button) => {
+    button.classList.toggle("is-active", state.homeView === button.dataset.homeView);
+  });
+}
+
 function renderFolderCards() {
   const selectedId = isBuiltInView(state.selectedFolderId) ? state.manifest.root.id : state.selectedFolderId;
   const children = state.index.childrenByParent.get(selectedId) || [];
@@ -1419,18 +1449,120 @@ function renderFolderCards() {
 }
 
 function renderGallery() {
+  if (isAlbumHomeView()) {
+    renderAlbumGrid();
+    return;
+  }
+
   const items = getFilteredItems();
   state.currentItems = items;
   const visible = items.slice(0, state.visibleLimit);
 
   els.resultCount.textContent = `${formatNumber(items.length)} results`;
   els.resultTitle.textContent = galleryTitle();
+  els.resultTitle.dataset.sortLabel = "| Sorted by Date taken";
   els.resultNote.textContent = galleryResultNote(items);
 
+  els.galleryGrid.classList.remove("is-album-grid");
   els.galleryGrid.innerHTML = visible.map(mediaCardHtml).join("");
   hydrateIconsIn(els.galleryGrid);
   wireImageFallbacks(els.galleryGrid);
   renderEmptyState(items);
+}
+
+function renderAlbumGrid() {
+  const albums = getHomeAlbums();
+  state.currentItems = [];
+
+  els.resultCount.textContent = `${formatNumber(albums.length)} albums`;
+  els.resultTitle.textContent = "Albums";
+  delete els.resultTitle.dataset.sortLabel;
+  els.resultNote.textContent = `${formatNumber(state.manifest.items.length)} photos and videos | ${albumSortLabel()}`;
+  els.galleryGrid.classList.add("is-album-grid");
+  els.galleryGrid.innerHTML = albums.map(albumCardHtml).join("");
+  hydrateIconsIn(els.galleryGrid);
+  wireImageFallbacks(els.galleryGrid);
+  renderEmptyState(albums);
+}
+
+function getHomeAlbums() {
+  const rootId = state.manifest.root.id;
+  const folders = state.index.childrenByParent.get(rootId) || [];
+  const albums = folders
+    .map((folder) => {
+      const covers = albumCoverItems(folder.id);
+      return {
+        folder,
+        count: state.index.itemCount(folder.id),
+        covers,
+        latestTime: getTime(covers[0]?.modifiedTime || folder.modifiedTime)
+      };
+    })
+    .filter((album) => album.count > 0);
+
+  return sortAlbums(albums, state.sort);
+}
+
+function sortAlbums(albums, sortMode) {
+  return albums.slice().sort((a, b) => {
+    if (sortMode === "oldest") {
+      return a.latestTime - b.latestTime;
+    }
+    if (sortMode === "name") {
+      return a.folder.name.localeCompare(b.folder.name, "th");
+    }
+    return b.latestTime - a.latestTime;
+  });
+}
+
+function albumCoverItems(folderId) {
+  const folderIds = state.index.descendants(folderId);
+  return state.manifest.items
+    .filter((item) => folderIds.has(item.folderId))
+    .sort((a, b) => getTime(b.modifiedTime) - getTime(a.modifiedTime))
+    .slice(0, 3);
+}
+
+function albumCardHtml(album) {
+  const { folder, count, covers, latestTime } = album;
+  const coverSlots = [0, 1, 2].map((slot) => {
+    const item = covers[slot];
+    if (!item) {
+      return `
+        <span class="album-cover-cell is-empty">
+          <span data-icon="image"></span>
+        </span>
+      `;
+    }
+    return `
+      <span class="album-cover-cell is-loading ${slot === 0 ? "is-primary" : ""}">
+        <img src="${escapeAttr(item.thumbnailUrl)}" data-fallback-src="${escapeAttr(item.thumbnailFallbackUrl)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+      </span>
+    `;
+  });
+
+  return `
+    <button class="album-card" type="button" data-folder-id="${escapeAttr(folder.id)}" aria-label="Open ${escapeAttr(folder.name)} album">
+      <span class="album-cover" aria-hidden="true">
+        ${coverSlots.join("")}
+      </span>
+      <span class="album-meta">
+        <span class="album-kicker"><span data-icon="folders"></span>${formatNumber(count)} media</span>
+        <strong>${escapeHtml(folder.name)}</strong>
+        <small>${latestTime ? `Latest ${formatShortDate(latestTime)}` : "Album"}</small>
+      </span>
+    </button>
+  `;
+}
+
+function albumSortLabel() {
+  if (state.sort === "oldest") {
+    return "Albums sorted oldest first";
+  }
+  if (state.sort === "name") {
+    return "Albums sorted by name";
+  }
+  return "Albums sorted by latest activity";
 }
 
 function renderEmptyState(items) {
@@ -1632,6 +1764,35 @@ function selectFolder(folderId) {
   document.body.classList.remove("mobile-chrome-hidden");
   renderAll();
   els.mainView?.scrollTo?.({ top: 0, behavior: "smooth" });
+}
+
+function setHomeView(homeView) {
+  if (!["albums", "photos"].includes(homeView)) {
+    return;
+  }
+
+  state.homeView = homeView;
+  state.visibleLimit = MEDIA_BATCH_SIZE;
+  try {
+    window.localStorage.setItem(HOME_VIEW_KEY, homeView);
+  } catch (error) {
+    console.warn("Home view preference could not be saved", error);
+  }
+  renderHomeViewSwitch();
+  renderGallery();
+}
+
+function readInitialHomeView() {
+  try {
+    const saved = window.localStorage.getItem(HOME_VIEW_KEY);
+    return saved === "photos" ? "photos" : "albums";
+  } catch {
+    return "albums";
+  }
+}
+
+function isAlbumHomeView() {
+  return state.selectedFolderId === "all" && !state.query && state.homeView === "albums";
 }
 
 function isBuiltInView(folderId) {
@@ -1893,7 +2054,7 @@ function hydrateIconsIn(root) {
 
 function wireImageFallbacks(root) {
   root.querySelectorAll("img").forEach((image) => {
-    const host = image.closest(".media-button, .folder-card-preview");
+    const host = image.closest(".media-button, .folder-card-preview, .album-cover-cell");
     if (!host) {
       return;
     }
